@@ -180,7 +180,10 @@ if (!db.connected) {
 }
 
 db.ping()
-	.then(() => console.log("[zeus-render] PostgreSQL connection OK"))
+	.then(async () => {
+		console.log("[zeus-render] PostgreSQL connection OK");
+		await db.migrate();
+	})
 	.catch((e) => {
 		if (db.connected) {
 			console.warn(`[zeus-render] PostgreSQL not reachable yet: ${e.message}`);

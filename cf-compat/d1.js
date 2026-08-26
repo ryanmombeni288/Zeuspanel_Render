@@ -146,6 +146,39 @@ export class D1Database {
 		await this.pool.query("SELECT 1");
 	}
 
+	// One-time widening migration for databases created before the int4->int8
+	// fix (CREATE TABLE IF NOT EXISTS never alters existing columns). Idempotent.
+	async migrate() {
+		if (!this.pool) return;
+		const bigintCols = [
+			"last_active",
+			"first_connection_time",
+			"last_reset_vol_time",
+			"last_reset_req_time",
+			"last_rotate_time",
+			"used_req",
+			"limit_req",
+		];
+		try {
+			const res = await this.pool.query(
+				`SELECT column_name FROM information_schema.columns
+				  WHERE table_schema = current_schema() AND table_name = 'users'
+				    AND data_type = 'integer'
+				    AND (column_name = ANY($1) OR column_name = 'port')`,
+				[bigintCols],
+			);
+			for (const row of res.rows) {
+				const target = row.column_name === "port" ? "TEXT" : "BIGINT";
+				await this.pool.query(`ALTER TABLE users ALTER COLUMN "${row.column_name}" TYPE ${target}`);
+			}
+			if (res.rows.length > 0) {
+				console.log(`[zeus-render] widened users columns: ${res.rows.map((r) => r.column_name).join(", ")}`);
+			}
+		} catch (e) {
+			console.warn(`[zeus-render] schema migration skipped: ${e.message}`);
+		}
+	}
+
 	async _resolvePk(table) {
 		const key = String(table).toLowerCase();
 		if (pkCache.has(key)) return pkCache.get(key);
@@ -192,12 +225,14 @@ export class D1Database {
 		s = s.replace(/\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b/gi, "SERIAL PRIMARY KEY");
 		s = s.replace(/\bAUTOINCREMENT\b/gi, "");
 
-		// SQLite INTEGER is 64-bit; columns holding epoch-milliseconds must be
-		// BIGINT in PostgreSQL or values like Date.now() overflow int4.
+		// SQLite INTEGER is 64-bit and dynamically typed; PostgreSQL int4 is
+		// 32-bit and strict. Epoch-ms and high-count columns must be BIGINT,
+		// and `port` must accept multi-port strings like "443,2053".
 		s = s.replace(
-			/\b(last_active|first_connection_time|last_reset_vol_time|last_reset_req_time|last_rotate_time)\s+INTEGER\b/gi,
+			/\b(last_active|first_connection_time|last_reset_vol_time|last_reset_req_time|last_rotate_time|used_req|limit_req)\s+INTEGER\b/gi,
 			"$1 BIGINT",
 		);
+		s = s.replace(/\bport\s+INTEGER\b/gi, "port TEXT");
 
 		// PG: bare `value` inside DO UPDATE SET is ambiguous (target vs EXCLUDED);
 		// SQLite resolved it to the existing row. Qualify with the table name.
