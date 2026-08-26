@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: zeus-panel
+    runtime: node
+    plan: starter # choose any plan; do not put secrets here
+    region: oregon
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false # set from your Render PostgreSQL instance (Internal Database URL)
+      - key: CF_API_TOKEN
+        sync: false # optional
+      - key: CF_ACCOUNT_ID
+        sync: false # optional
+      - key: WORKER_NAME
+        sync: false # optional
+
+databases:
+  - name: zeus-db
+    databaseName: zeus
+    user: zeus
+    plan: basic-256mb # adjust as needed
