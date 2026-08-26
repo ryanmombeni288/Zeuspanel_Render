@@ -3900,6 +3900,13 @@ const HTML_TEMPLATES = {
 			}
 		}
 	</script>
+	<footer style="position:relative;z-index:10;text-align:center;padding:10px 12px 24px;font-size:12px;line-height:2.1;color:#94a3b8">
+		<div>برنامه‌نویس ربات: رایان ممبنی</div>
+		<div>پیوی برنامه‌نویس ربات: <a href="https://t.me/Rayan_Crafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Rayan_Crafter</a></div>
+		<div>کانال تلگرام برنامه‌نویس: <a href="https://t.me/Inetiran" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Inetiran</a></div>
+		<div>کانال یوتیوب برنامه‌نویس ربات: <a href="https://youtube.com/@rayancrafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">Rayan Crafter</a></div>
+		<div style="margin-top:4px">© Developed by Rayan Crafter</div>
+	</footer>
 	${COMMON_WAVES_SCRIPT}
 </body>
 </html>`,
@@ -4005,6 +4012,13 @@ const HTML_TEMPLATES = {
 			}
 		}
 	</script>
+	<footer style="position:relative;z-index:10;text-align:center;padding:10px 12px 24px;font-size:12px;line-height:2.1;color:#94a3b8">
+		<div>برنامه‌نویس ربات: رایان ممبنی</div>
+		<div>پیوی برنامه‌نویس ربات: <a href="https://t.me/Rayan_Crafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Rayan_Crafter</a></div>
+		<div>کانال تلگرام برنامه‌نویس: <a href="https://t.me/Inetiran" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Inetiran</a></div>
+		<div>کانال یوتیوب برنامه‌نویس ربات: <a href="https://youtube.com/@rayancrafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">Rayan Crafter</a></div>
+		<div style="margin-top:4px">© Developed by Rayan Crafter</div>
+	</footer>
 	${COMMON_WAVES_SCRIPT}
 </body>
 </html>`,
@@ -9105,6 +9119,13 @@ const WORKER_DONATE_URL = "https://si-491177.taile4bcbb.ts.net/donate";
 			}
 		};
 	</script>
+	<footer style="position:relative;z-index:10;text-align:center;padding:10px 12px 24px;font-size:12px;line-height:2.1;color:#94a3b8">
+		<div>برنامه‌نویس ربات: رایان ممبنی</div>
+		<div>پیوی برنامه‌نویس ربات: <a href="https://t.me/Rayan_Crafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Rayan_Crafter</a></div>
+		<div>کانال تلگرام برنامه‌نویس: <a href="https://t.me/Inetiran" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Inetiran</a></div>
+		<div>کانال یوتیوب برنامه‌نویس ربات: <a href="https://youtube.com/@rayancrafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">Rayan Crafter</a></div>
+		<div style="margin-top:4px">© Developed by Rayan Crafter</div>
+	</footer>
 	${COMMON_WAVES_SCRIPT}
 	  </body>
 </html>`,
@@ -9727,6 +9748,13 @@ const flagContainer = document.getElementById('display-flag');
 			if (e.target.id === 'qr-modal') toggleQrModal(false);
 		});
 	</script>
+	<footer style="position:relative;z-index:10;text-align:center;padding:10px 12px 24px;font-size:12px;line-height:2.1;color:#94a3b8">
+		<div>برنامه‌نویس ربات: رایان ممبنی</div>
+		<div>پیوی برنامه‌نویس ربات: <a href="https://t.me/Rayan_Crafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Rayan_Crafter</a></div>
+		<div>کانال تلگرام برنامه‌نویس: <a href="https://t.me/Inetiran" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">@Inetiran</a></div>
+		<div>کانال یوتیوب برنامه‌نویس ربات: <a href="https://youtube.com/@rayancrafter" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">Rayan Crafter</a></div>
+		<div style="margin-top:4px">© Developed by Rayan Crafter</div>
+	</footer>
 	${COMMON_WAVES_SCRIPT}
 </body>
 </html>`,
