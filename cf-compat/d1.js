@@ -17,8 +17,11 @@
 import pg from "pg";
 
 // Preserve raw timestamp strings (matches how D1 stored CURRENT_TIMESTAMP).
+// Map int8 (BIGINT) to JS numbers: epoch-ms columns are 64-bit in SQLite/D1
+// and would overflow a 32-bit int4; pg returns BIGINT as string by default.
 try {
 	pg.types.setTypeParser(1114, (v) => v);
+	pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
 } catch (e) { }
 
 const FALLBACK_PK = { settings: ["key"] };
@@ -29,6 +32,41 @@ function coerceParam(v) {
 	if (v instanceof ArrayBuffer) return Buffer.from(v);
 	if (ArrayBuffer.isView(v)) return Buffer.from(v.buffer, v.byteOffset, v.byteLength);
 	return v;
+}
+
+// SQLite/D1 use `?` placeholders; node-postgres uses `$1..$n`.
+// Converts sequentially while skipping single-quoted string literals.
+function convertPlaceholders(sql) {
+	let out = "";
+	let n = 0;
+	let inString = false;
+	for (let i = 0; i < sql.length; i++) {
+		const ch = sql[i];
+		if (inString) {
+			out += ch;
+			if (ch === "'") {
+				if (sql[i + 1] === "'") {
+					out += "'";
+					i++;
+				} else {
+					inString = false;
+				}
+			}
+			continue;
+		}
+		if (ch === "'") {
+			inString = true;
+			out += ch;
+			continue;
+		}
+		if (ch === "?") {
+			n++;
+			out += "$" + n;
+			continue;
+		}
+		out += ch;
+	}
+	return out;
 }
 
 class D1PreparedStatement {
@@ -108,18 +146,6 @@ export class D1Database {
 		await this.pool.query("SELECT 1");
 	}
 
-	_pkColumns(table) {
-		const key = String(table).toLowerCase();
-		if (pkCache.has(key)) return pkCache.get(key);
-		const cached = FALLBACK_PK[key];
-		if (cached) {
-			pkCache.set(key, cached);
-			return cached;
-		}
-		// Discover lazily; will be cached by the async wrapper below.
-		return null;
-	}
-
 	async _resolvePk(table) {
 		const key = String(table).toLowerCase();
 		if (pkCache.has(key)) return pkCache.get(key);
@@ -166,6 +192,24 @@ export class D1Database {
 		s = s.replace(/\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b/gi, "SERIAL PRIMARY KEY");
 		s = s.replace(/\bAUTOINCREMENT\b/gi, "");
 
+		// SQLite INTEGER is 64-bit; columns holding epoch-milliseconds must be
+		// BIGINT in PostgreSQL or values like Date.now() overflow int4.
+		s = s.replace(
+			/\b(last_active|first_connection_time|last_reset_vol_time|last_reset_req_time|last_rotate_time)\s+INTEGER\b/gi,
+			"$1 BIGINT",
+		);
+
+		// PG: bare `value` inside DO UPDATE SET is ambiguous (target vs EXCLUDED);
+		// SQLite resolved it to the existing row. Qualify with the table name.
+		s = s.replace(
+			/(INSERT\s+INTO\s+([A-Za-z_][\w]*)[\s\S]*?DO\s+UPDATE\s+SET\s+value\s*=\s*CAST\()value(\s+AS\s+(?:INTEGER|REAL)\s*\))/gi,
+			"$1$2.value$3",
+		);
+
+		// PG cannot infer the type of a parameter used only in `IS NOT NULL`;
+		// SQLite/D1 treated it as text. Cast explicitly to keep semantics.
+		s = s.replace(/CASE\s+WHEN\s+\?\s+IS\s+NOT\s+NULL\s+THEN\b/gi, "CASE WHEN CAST(? AS TEXT) IS NOT NULL THEN");
+
 		// Case-insensitive equality against a bound parameter.
 		s = s.replace(/([A-Za-z_][\w.]*)\s*=\s*\?\s*COLLATE\s+NOCASE/gi, "lower($1) = lower(?)");
 
@@ -202,7 +246,7 @@ export class D1Database {
 		}
 
 		outParams = params;
-		return { text: s, params: outParams };
+		return { text: convertPlaceholders(s), params: outParams };
 	}
 
 	async _query(sql, params) {

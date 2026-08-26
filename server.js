@@ -134,6 +134,7 @@ const server = http.createServer(async (req, res) => {
 		const response = await wsRequestContext.run({ pair: null }, () => worker.fetch(request, env, ctx));
 		await sendResponse(res, response);
 	} catch (err) {
+		console.error("[zeus-render] request error:", (err && err.stack) || err);
 		try {
 			if (!res.headersSent) {
 				res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
@@ -161,6 +162,7 @@ server.on("upgrade", async (req, socket, head) => {
 					try { ws.close(1011, "no websocket pair"); } catch (e) { }
 				}
 			} catch (err) {
+				console.error("[zeus-render] websocket error:", (err && err.stack) || err);
 				try { ws.close(1011, "internal error"); } catch (e) { }
 			} finally {
 				settleCtx(ctx);
