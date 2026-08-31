@@ -12,6 +12,7 @@
 //     the WebSocketPair created inside the handler
 //   - adds /healthz for Render health checks (does not interfere with routes)
 import http from "node:http";
+import zlib from "node:zlib";
 import { Readable } from "node:stream";
 
 import { installCFCompatGlobals } from "./cf-compat/cf-globals.js";
@@ -90,7 +91,7 @@ function buildRequest(req) {
 	return new Request(url, init);
 }
 
-async function sendResponse(nodeRes, response) {
+async function sendResponse(nodeReq, nodeRes, response) {
 	if (!response || response.__isZeusCompat101 === true || response.status === 101) return;
 
 	const headers = {};
@@ -105,20 +106,50 @@ async function sendResponse(nodeRes, response) {
 		}
 	} catch (e) { }
 
-	nodeRes.writeHead(response.status, headers);
-
 	if (!response.body) {
+		nodeRes.writeHead(response.status, headers);
 		nodeRes.end();
 		return;
 	}
+
 	const stream = Readable.fromWeb(response.body);
 	stream.on("error", () => {
 		try { nodeRes.destroy(); } catch (e) { }
 	});
+
+	// Compress text payloads (panel HTML is ~300KB uncompressed; JSON APIs are
+	// polled continuously). Skipped when the client sends no Accept-Encoding
+	// or the worker already encoded the body.
+	const accept = String((nodeReq && nodeReq.headers && nodeReq.headers["accept-encoding"]) || "");
+	const contentType = String(headers["content-type"] || "");
+	const canGzip =
+		/\bgzip\b/.test(accept) &&
+		headers["content-encoding"] === undefined &&
+		(contentType.startsWith("text/") ||
+			contentType.includes("json") ||
+			contentType.includes("javascript") ||
+			contentType.includes("svg") ||
+			contentType.includes("manifest"));
+
+	if (canGzip) {
+		const outHeaders = { ...headers };
+		outHeaders["Content-Encoding"] = "gzip";
+		outHeaders["Vary"] = headers["vary"] ? `${headers["vary"]}, Accept-Encoding` : "Accept-Encoding";
+		delete outHeaders["content-length"];
+		nodeRes.writeHead(response.status, outHeaders);
+		const gzip = zlib.createGzip();
+		gzip.on("error", () => {
+			try { nodeRes.destroy(); } catch (e) { }
+		});
+		stream.pipe(gzip).pipe(nodeRes);
+		return;
+	}
+
+	nodeRes.writeHead(response.status, headers);
 	stream.pipe(nodeRes);
 }
 
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 * 1024 });
 
 const server = http.createServer(async (req, res) => {
 	let ctx = null;
@@ -132,8 +163,9 @@ const server = http.createServer(async (req, res) => {
 		const request = buildRequest(req);
 		ctx = makeCtx();
 		const response = await wsRequestContext.run({ pair: null }, () => worker.fetch(request, env, ctx));
-		await sendResponse(res, response);
+		await sendResponse(req, res, response);
 	} catch (err) {
+		console.error("[zeus-render] request error:", (err && err.stack) || err);
 		try {
 			if (!res.headersSent) {
 				res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
@@ -161,6 +193,7 @@ server.on("upgrade", async (req, socket, head) => {
 					try { ws.close(1011, "no websocket pair"); } catch (e) { }
 				}
 			} catch (err) {
+				console.error("[zeus-render] websocket error:", (err && err.stack) || err);
 				try { ws.close(1011, "internal error"); } catch (e) { }
 			} finally {
 				settleCtx(ctx);
@@ -178,13 +211,26 @@ if (!db.connected) {
 }
 
 db.ping()
-	.then(() => console.log("[zeus-render] PostgreSQL connection OK"))
+	.then(async () => {
+		console.log("[zeus-render] PostgreSQL connection OK");
+		await db.migrate();
+	})
 	.catch((e) => {
 		if (db.connected) {
 			console.warn(`[zeus-render] PostgreSQL not reachable yet: ${e.message}`);
 			console.warn("[zeus-render] Will keep retrying lazily per-request (same behavior as D1 error paths).");
 		}
 	});
+
+// Render's proxy closes idle connections; without these defaults a keep-alive
+// race produces periodic 502s on cached/static routes.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+server.requestTimeout = 0;
+
+process.on("unhandledRejection", (err) => {
+	console.error("[zeus-render] unhandled rejection:", err && err.stack ? err.stack : err);
+});
 
 server.listen(PORT, HOST, () => {
 	console.log(`[zeus-render] ZEUS Panel listening on http://${HOST}:${PORT}`);
