@@ -138,6 +138,34 @@ First, log into your Cloudflare dashboard. Ensure you are using a verified email
 
 ---
 
+# 🚄 Deploy on Railway (Node.js + PostgreSQL)
+
+This repository is preconfigured for [Railway](https://railway.com) via `railway.json` (Railpack builder, `/healthz` health check, auto-restart on failure).
+
+### Option A — Deploy from GitHub
+1. Push this repository to your GitHub account.
+2. Go to [railway.com](https://railway.com) → **New Project** → **Deploy from GitHub repo** → select the repo (deploy happens automatically using `railway.json`).
+3. In the same project, click **+ New** → **Database** → **PostgreSQL**. Railway injects `DATABASE_URL` into the service automatically.
+4. Open your service → **Settings** → **Networking** → **Generate Domain** to get your public URL.
+5. Visit `<your-domain>/panel` and set the admin password on first login.
+
+### Option B — Deploy from your machine (Railway CLI)
+```bash
+npm install -g @railway/cli
+railway login
+railway init               # create the project
+railway add --database postgres
+railway up                 # builds and deploys the local directory
+railway domain             # generate a public URL
+```
+
+> [!NOTE]
+> - Railway's edge proxy natively supports WebSockets — no extra configuration is needed for VLESS/Trojan traffic.
+> - Keep `numReplicas` at 1 (default in `railway.json`): traffic accounting is cached in memory and flushed to PostgreSQL, so horizontal scaling would corrupt usage stats.
+> - The database schema (tables + indexes) is created automatically on first boot.
+
+---
+
 
 # 🛡️ Build Your Own SOCKS5 Proxy (Zeus Relay)
 
