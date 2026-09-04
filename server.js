@@ -1,4 +1,4 @@
-// Render.com / Node.js entry point for the ZEUS panel (Cloudflare Workers port).
+// Railway.com / Render.com / Node.js entry point for the ZEUS panel (Cloudflare Workers port).
 //
 // Bridges Node's http server to the original Worker fetch handler with the
 // smallest possible surface change:
@@ -26,7 +26,12 @@ import { WebSocketServer } from "ws";
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
 
-const db = new D1Database(process.env.DATABASE_URL || "");
+const db = new D1Database(
+	process.env.DATABASE_URL ||
+	process.env.DATABASE_PRIVATE_URL ||
+	process.env.DATABASE_PUBLIC_URL ||
+	""
+);
 const env = {
 	DB: db,
 	CF_API_TOKEN: process.env.CF_API_TOKEN || "",
@@ -165,7 +170,7 @@ const server = http.createServer(async (req, res) => {
 		const response = await wsRequestContext.run({ pair: null }, () => worker.fetch(request, env, ctx));
 		await sendResponse(req, res, response);
 	} catch (err) {
-		console.error("[zeus-render] request error:", (err && err.stack) || err);
+		console.error("[zeus-panel] request error:", (err && err.stack) || err);
 		try {
 			if (!res.headersSent) {
 				res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
@@ -193,7 +198,7 @@ server.on("upgrade", async (req, socket, head) => {
 					try { ws.close(1011, "no websocket pair"); } catch (e) { }
 				}
 			} catch (err) {
-				console.error("[zeus-render] websocket error:", (err && err.stack) || err);
+				console.error("[zeus-panel] websocket error:", (err && err.stack) || err);
 				try { ws.close(1011, "internal error"); } catch (e) { }
 			} finally {
 				settleCtx(ctx);
@@ -206,34 +211,33 @@ server.on("upgrade", async (req, socket, head) => {
 
 if (!db.connected) {
 	console.warn(
-		"[zeus-render] WARNING: DATABASE_URL is not set. The app will start, but database-backed routes will fail until you configure it (see .env.example).",
+		"[zeus-panel] WARNING: DATABASE_URL (or DATABASE_PRIVATE_URL) is not set. The app will start, but database-backed routes will fail until you configure it (see .env.example).",
 	);
 }
 
 db.ping()
 	.then(async () => {
-		console.log("[zeus-render] PostgreSQL connection OK");
+		console.log("[zeus-panel] PostgreSQL connection OK");
 		await db.migrate();
 	})
 	.catch((e) => {
 		if (db.connected) {
-			console.warn(`[zeus-render] PostgreSQL not reachable yet: ${e.message}`);
-			console.warn("[zeus-render] Will keep retrying lazily per-request (same behavior as D1 error paths).");
+			console.warn(`[zeus-panel] PostgreSQL not reachable yet: ${e.message}`);
+			console.warn("[zeus-panel] Will keep retrying lazily per-request (same behavior as D1 error paths).");
 		}
 	});
 
-// Render's proxy closes idle connections; without these defaults a keep-alive
-// race produces periodic 502s on cached/static routes.
+// Railway & Render proxies close idle connections; keep-alive headers avoid 502 races.
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
 server.requestTimeout = 0;
 
 process.on("unhandledRejection", (err) => {
-	console.error("[zeus-render] unhandled rejection:", err && err.stack ? err.stack : err);
+	console.error("[zeus-panel] unhandled rejection:", err && err.stack ? err.stack : err);
 });
 
 server.listen(PORT, HOST, () => {
-	console.log(`[zeus-render] ZEUS Panel listening on http://${HOST}:${PORT}`);
+	console.log(`[zeus-panel] ZEUS Panel listening on http://${HOST}:${PORT}`);
 });
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
@@ -243,7 +247,7 @@ let shuttingDown = false;
 function gracefulShutdown(signal) {
 	if (shuttingDown) return;
 	shuttingDown = true;
-	console.log(`[zeus-render] Received ${signal}, shutting down...`);
+	console.log(`[zeus-panel] Received ${signal}, shutting down...`);
 	server.close(() => { });
 	wss.clients.forEach((c) => {
 		try { c.close(1001, "server shutting down"); } catch (e) { }

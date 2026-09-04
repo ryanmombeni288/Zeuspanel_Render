@@ -111,7 +111,16 @@ class D1PreparedStatement {
 
 export class D1Database {
 	constructor(connectionString, opts = {}) {
-		if (!connectionString) {
+		const connStr =
+			connectionString ||
+			process.env.DATABASE_URL ||
+			process.env.DATABASE_PRIVATE_URL ||
+			process.env.DATABASE_PUBLIC_URL ||
+			(process.env.PGHOST && process.env.PGDATABASE
+				? `postgres://${encodeURIComponent(process.env.PGUSER || "postgres")}:${encodeURIComponent(process.env.PGPASSWORD || "")}@${process.env.PGHOST}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE}`
+				: "");
+
+		if (!connStr) {
 			// Mirror Workers behavior: requests fail per-request instead of crash-looping.
 			this.pool = null;
 			this.missingUrl = true;
@@ -120,7 +129,7 @@ export class D1Database {
 		this.missingUrl = false;
 		const parsed = (() => {
 			try {
-				return new URL(connectionString);
+				return new URL(connStr);
 			} catch (e) {
 				return null;
 			}
@@ -130,12 +139,14 @@ export class D1Database {
 		else if (
 			parsed &&
 			((parsed.searchParams && parsed.searchParams.get("sslmode") && parsed.searchParams.get("sslmode") !== "disable") ||
-				/\.render\.com$/i.test(parsed.hostname))
+				/\.render\.com$/i.test(parsed.hostname) ||
+				/\.railway\.internal$/i.test(parsed.hostname) ||
+				/\.rlwy\.net$/i.test(parsed.hostname))
 		) {
 			ssl = { rejectUnauthorized: false };
 		}
 		this.pool = new pg.Pool({
-			connectionString,
+			connectionString: connStr,
 			max: Number(opts.max || process.env.PG_POOL_MAX || 10),
 			idleTimeoutMillis: 30000,
 			connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS || 10000),

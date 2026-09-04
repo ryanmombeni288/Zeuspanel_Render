@@ -1,9 +1,9 @@
 {
-  "name": "zeus-panel-render",
+  "name": "zeus-panel",
   "version": "2.0.5",
   "private": true,
   "type": "module",
-  "description": "ZEUS Panel - Cloudflare Workers edition ported to Node.js for Render.com (minimal compatibility port)",
+  "description": "ZEUS Panel - Cloudflare Workers edition ported to Node.js for Railway and Render",
   "engines": {
     "node": ">=20"
   },
