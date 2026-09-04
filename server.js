@@ -46,6 +46,78 @@ const env = {
 	RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || "",
 };
 
+async function ensureRailwayTcpProxy() {
+	const token = env.RAILWAY_API_TOKEN;
+	const serviceId = env.RAILWAY_SERVICE_ID;
+	const environmentId = env.RAILWAY_ENVIRONMENT_ID;
+	if (!token || !serviceId || !environmentId) return;
+
+	try {
+		const res = await fetch("https://backboard.railway.com/graphql/v2", {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				query: `query serviceTcpProxies($serviceId: String!, $environmentId: String!) {
+					tcpProxies(serviceId: $serviceId, environmentId: $environmentId) {
+						id
+						domain
+						proxyPort
+						applicationPort
+					}
+				}`,
+				variables: { serviceId, environmentId },
+			}),
+		});
+		const data = await res.json();
+		const list = data?.data?.tcpProxies || [];
+		const active = list.find((p) => p.applicationPort === PORT) || list[0];
+		if (active) {
+			env.RAILWAY_TCP_PROXY_DOMAIN = active.domain;
+			env.RAILWAY_TCP_PROXY_PORT = String(active.proxyPort);
+			console.log(`[zeus-panel] Active Railway TCP Proxy: ${active.domain}:${active.proxyPort} -> ${active.applicationPort}`);
+			return;
+		}
+
+		console.log(`[zeus-panel] Creating Railway TCP Proxy for app port ${PORT}...`);
+		const createRes = await fetch("https://backboard.railway.com/graphql/v2", {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				query: `mutation createTcp($input: TCPProxyCreateInput!) {
+					tcpProxyCreate(input: $input) {
+						id
+						domain
+						proxyPort
+						applicationPort
+					}
+				}`,
+				variables: {
+					input: {
+						serviceId,
+						environmentId,
+						applicationPort: PORT,
+					},
+				},
+			}),
+		});
+		const createData = await createRes.json();
+		const created = createData?.data?.tcpProxyCreate;
+		if (created) {
+			env.RAILWAY_TCP_PROXY_DOMAIN = created.domain;
+			env.RAILWAY_TCP_PROXY_PORT = String(created.proxyPort);
+			console.log(`[zeus-panel] Created Railway TCP Proxy: ${created.domain}:${created.proxyPort}`);
+		}
+	} catch (e) {
+		console.warn(`[zeus-panel] Railway TCP Proxy sync notice: ${e.message}`);
+	}
+}
+
 function makeCtx() {
 	const pending = [];
 	return {
@@ -248,6 +320,7 @@ process.on("unhandledRejection", (err) => {
 
 server.listen(PORT, HOST, () => {
 	console.log(`[zeus-panel] ZEUS Panel listening on http://${HOST}:${PORT}`);
+	ensureRailwayTcpProxy().catch(() => {});
 });
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

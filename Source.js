@@ -813,13 +813,19 @@ const Router = {
 		if (url.pathname === "/api/auto-update-setup" && request.method === "POST") {
 			const body = await readJsonBody(request);
 			if (body.action === "check") {
+				const hasRailway = !!(env.RAILWAY_API_TOKEN || env.RAILWAY_TOKEN);
 				const dbTokenRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'cf_token'").first();
-				const hasToken = !!env.CF_API_TOKEN || !!(dbTokenRow && dbTokenRow.value);
+				const hasToken = hasRailway || !!env.CF_API_TOKEN || !!(dbTokenRow && dbTokenRow.value);
 				const autoUpdateRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'auto_update'").first();
 				const isAutoUpdateEnabled = autoUpdateRow ? autoUpdateRow.value === "1" : true;
-				return new Response(JSON.stringify({ has_token: hasToken, auto_update: isAutoUpdateEnabled }), { headers: { "Content-Type": "application/json" } });
+				return new Response(JSON.stringify({ has_token: hasToken, auto_update: isAutoUpdateEnabled, is_railway: hasRailway }), { headers: { "Content-Type": "application/json" } });
 			}
 			if (body.action === "enable") {
+				const hasRailway = !!(env.RAILWAY_API_TOKEN || env.RAILWAY_TOKEN);
+				if (hasRailway) {
+					await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('auto_update', '1')").run();
+					return new Response(JSON.stringify({ success: true, railway: true }), { headers: { "Content-Type": "application/json" } });
+				}
 				const dbTokenRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'cf_token'").first();
 				let token = body.token || env.CF_API_TOKEN || (dbTokenRow ? dbTokenRow.value : null);
 				if (!token) return new Response(JSON.stringify({ error: "TOKEN_MISSING" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -8079,9 +8085,10 @@ links.push('vle' + 'ss://' + (user.uuid || '') + '@0.0.0.0:1?encryption=none&sec
 						if (user.frag_len && user.frag_int) userFrag += "&fragment=" + encodeURIComponent(user.frag_len + "," + user.frag_int + (isTlsPort ? ",tlshello" : ""));
 						if (user.advanced_frag) userFrag += "&fm=" + encodeURIComponent(user.advanced_frag);
 						if (isTlsPort && user.cipher_suites) userFrag += "&cs=" + encodeURIComponent(user.cipher_suites);
+						const effectiveMask = user.tls_mask || host;
 						if (user.tls_mask) userFrag += "&mask=" + encodeURIComponent(user.tls_mask);
 						
-						const tlsParams = isTlsPort ? ("&insecure=0&fp=" + fp + "&allowInsecure=0&sni=" + host) : "";
+						const tlsParams = isTlsPort ? ("&insecure=0&fp=" + fp + "&allowInsecure=0&sni=" + effectiveMask) : "";
 
 						if (enableVless) {
 							const remark = "ZEUS | " + proxy.flagEmoji + " | " + user.username;
@@ -10010,9 +10017,10 @@ links.push('vle' + 'ss://' + (u.uuid || '') + '@0.0.0.0:1?encryption=none&securi
 						if (u.frag_len && u.frag_int) userFrag += "&fragment=" + encodeURIComponent(u.frag_len + "," + u.frag_int + (isTlsPort ? ",tlshello" : ""));
 						if (u.advanced_frag) userFrag += "&fm=" + encodeURIComponent(u.advanced_frag);
 						if (isTlsPort && u.cipher_suites) userFrag += "&cs=" + encodeURIComponent(u.cipher_suites);
+						const effectiveMask = u.tls_mask || host;
 						if (u.tls_mask) userFrag += "&mask=" + encodeURIComponent(u.tls_mask);
 						
-						const tlsParams = isTlsPort ? ("&insecure=0&fp=" + fp + "&allowInsecure=0&sni=" + host) : "";
+						const tlsParams = isTlsPort ? ("&insecure=0&fp=" + fp + "&allowInsecure=0&sni=" + effectiveMask) : "";
 
 						if (enableVless) {
 							const remark = "ZEUS | " + proxy.flagEmoji + " | " + u.username;
