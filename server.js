@@ -71,18 +71,20 @@ function buildRequest(req) {
 		else headers.set(name, value);
 	}
 
-	// Workers always exposed the client IP via CF-Connecting-IP; on Render the
-	// service sits behind Render's proxy, so derive it once here.
+	// In Railway / reverse proxies, extract client IP (checking CF-Connecting-IP, X-Real-IP, X-Forwarded-For)
 	try {
-		let ip = headers.get("CF-Connecting-IP");
+		let ip = headers.get("CF-Connecting-IP") || headers.get("X-Real-IP");
 		if (!ip) {
-			const xff = req.headers["x-forwarded-for"];
+			const xff = req.headers["x-forwarded-for"] || req.headers["x-client-ip"];
 			ip = (Array.isArray(xff) ? xff[0] : xff) || "";
 			if (ip.includes(",")) ip = ip.split(",")[0].trim();
 			ip = ip.trim();
 			if (!ip && req.socket && req.socket.remoteAddress) ip = req.socket.remoteAddress;
 			if (ip.startsWith("::ffff:")) ip = ip.slice(7);
-			if (ip) headers.set("CF-Connecting-IP", ip);
+		}
+		if (ip) {
+			headers.set("CF-Connecting-IP", ip);
+			headers.set("X-Real-IP", ip);
 		}
 	} catch (e) { }
 
@@ -160,9 +162,10 @@ const server = http.createServer(async (req, res) => {
 	let ctx = null;
 	try {
 		const pathname = (req.url || "/").split("?")[0];
-		if (pathname === "/healthz") {
+		if (pathname === "/healthz" || pathname === "/health") {
+			const isDbReady = db.connected;
 			res.writeHead(200, { "Content-Type": "application/json" });
-			res.end(JSON.stringify({ status: "ok" }));
+			res.end(JSON.stringify({ status: "ok", db: isDbReady ? "connected" : "pending" }));
 			return;
 		}
 		const request = buildRequest(req);
