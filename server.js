@@ -37,6 +37,13 @@ const env = {
 	CF_API_TOKEN: process.env.CF_API_TOKEN || "",
 	CF_ACCOUNT_ID: process.env.CF_ACCOUNT_ID || "",
 	WORKER_NAME: process.env.WORKER_NAME || "",
+	RAILWAY_API_TOKEN: process.env.RAILWAY_API_TOKEN || process.env.RAILWAY_TOKEN || "",
+	RAILWAY_PROJECT_ID: process.env.RAILWAY_PROJECT_ID || "",
+	RAILWAY_SERVICE_ID: process.env.RAILWAY_SERVICE_ID || "",
+	RAILWAY_ENVIRONMENT_ID: process.env.RAILWAY_ENVIRONMENT_ID || "",
+	RAILWAY_TCP_PROXY_DOMAIN: process.env.RAILWAY_TCP_PROXY_DOMAIN || "",
+	RAILWAY_TCP_PROXY_PORT: process.env.RAILWAY_TCP_PROXY_PORT || "",
+	RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || "",
 };
 
 function makeCtx() {
